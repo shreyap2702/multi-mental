@@ -154,3 +154,39 @@ def analysis_endpoint(entry_id : int, session = Depends(get_session)):
         },
         "analysis": analysis
     }
+# Update an entry
+@app.put("/entries/{entry_id}")
+def update_entry(entry_id: int, entry: EntryCreate, session: Session = Depends(get_session)):
+    db_entry = session.get(Entry, entry_id)
+    if not db_entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    db_entry.gratitude = entry.gratitude
+    db_entry.tasks = entry.tasks
+    db_entry.pain_points = entry.pain_points
+    db_entry.reflection = entry.reflection
+    session.add(db_entry)
+    session.commit()
+    session.refresh(db_entry)
+    return db_entry
+
+
+# Delete an entry
+@app.delete("/entries/{entry_id}")
+def delete_entry(entry_id: int, session: Session = Depends(get_session)):
+    db_entry = session.get(Entry, entry_id)
+    if not db_entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    session.delete(db_entry)
+    session.commit()
+    return {"message": "Entry deleted successfully"}
+
+
+# Delete a user (cascade delete entries if you want)
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, session: Session = Depends(get_session)):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.delete(user)
+    session.commit()
+    return {"message": "User deleted successfully"}
