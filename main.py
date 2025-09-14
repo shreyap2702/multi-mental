@@ -6,6 +6,8 @@ from datetime import datetime
 from dotenv import load_dotenv
 from utils.db import init_db, get_session
 from fastapi import Body
+from agents.coordinator import coordinator_agent
+
 load_dotenv()
 db_url = os.getenv('DATABASE_URL')
 
@@ -13,7 +15,6 @@ class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str
     password: str
-
 
 class UserCreate(SQLModel):
     name: str
@@ -27,18 +28,15 @@ class Entry(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int | None = Field(default=None, foreign_key="user.id")
     date: datetime = Field(default_factory=datetime.utcnow)
-    gratitude: str
     tasks: str | None = None
     pain_points: str | None = None
-    reflection: str | None = None
-    
+    raw_thoughts: str
+
 class EntryCreate(SQLModel):
-    gratitude: str
     tasks: str | None = None
     pain_points: str | None = None
-    reflection: str | None = None
-    
-    
+    raw_thoughts: str
+
 init_db()
     
 app = FastAPI(title="Mental Wellness API")
@@ -75,11 +73,12 @@ def create_entry(userid : int, entry: EntryCreate, session: Session = Depends(ge
     if existing_entry:
         raise HTTPException(status_code=400, detail="User has already created an entry today")
     
-    db_entry = Entry( user_id = userid,
-                     gratitude= entry.gratitude,
-                     tasks = entry.tasks,
-                     pain_points= entry.pain_points,
-                     reflection= entry.reflection)
+    db_entry = Entry(
+        user_id=userid,
+        tasks=entry.tasks,
+        pain_points=entry.pain_points,
+        raw_thoughts=entry.raw_thoughts
+    )
     
     session.add(db_entry)
     session.commit()
@@ -106,7 +105,6 @@ def get_user_entries(user_id: int, session: Session = Depends(get_session)):
     
     return entries
 
-#GET /users/{user_id}/entries/today
 @app.get("/users/{user_id}/entries/today")
 def get_today_entry(user_id: int, session: Session = Depends(get_session)):
     user = session.get(User, user_id)
@@ -129,48 +127,45 @@ def get_today_entry(user_id: int, session: Session = Depends(get_session)):
     
     return today_entry
 
+coordinator = coordinator_agent()
+
 @app.post("/entries/{entry_id}/analyze")
-def analysis_endpoint(entry_id : int, session = Depends(get_session)):
+def analysis_endpoint(entry_id: int, session = Depends(get_session)):
     
     entry = session.get(Entry, entry_id)
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     
-    analysis = {
-        "summary" : "This a placeholder presenting summary",
-        "mood" : "neutral",
-        "keyword" :["placeholder"],
-        "recommendations" : ["Connect to AI agents to replace this stub."]
+    # Gather content to send to the coordinator
+    entry_content = {
+        "tasks": entry.tasks,
+        "pain_points": entry.pain_points,
+        "raw_thoughts": entry.raw_thoughts
     }
+    
+    # Call the coordinator agent
+    analysis = coordinator.handle(entry_content)
     
     return {
         "entry_id": entry.id,
         "date": entry.date,
-        "content": {
-            "gratitude": entry.gratitude,
-            "tasks": entry.tasks,
-            "pain_points": entry.pain_points,
-            "reflection": entry.reflection
-        },
+        "content": entry_content,
         "analysis": analysis
     }
-# Update an entry
+
 @app.put("/entries/{entry_id}")
 def update_entry(entry_id: int, entry: EntryCreate, session: Session = Depends(get_session)):
     db_entry = session.get(Entry, entry_id)
     if not db_entry:
         raise HTTPException(status_code=404, detail="Entry not found")
-    db_entry.gratitude = entry.gratitude
     db_entry.tasks = entry.tasks
     db_entry.pain_points = entry.pain_points
-    db_entry.reflection = entry.reflection
+    db_entry.raw_thoughts = entry.raw_thoughts
     session.add(db_entry)
     session.commit()
     session.refresh(db_entry)
     return db_entry
 
-
-# Delete an entry
 @app.delete("/entries/{entry_id}")
 def delete_entry(entry_id: int, session: Session = Depends(get_session)):
     db_entry = session.get(Entry, entry_id)
@@ -180,8 +175,6 @@ def delete_entry(entry_id: int, session: Session = Depends(get_session)):
     session.commit()
     return {"message": "Entry deleted successfully"}
 
-
-# Delete a user (cascade delete entries if you want)
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int, session: Session = Depends(get_session)):
     user = session.get(User, user_id)
