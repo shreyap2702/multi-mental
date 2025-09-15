@@ -16,8 +16,9 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 llm = init_chat_model("google_genai:gemini-2.0-flash")
 
-def gratitude_agent(state: State):
-    user_entry =  state["messages"][-1]
+def gratitude_agent(state: dict):
+    messages = state.get("messages", [])
+    user_entry = messages[-1] if messages else state.get("gratitude", "")
     
     prompt = f"""
     The user wrote the following journal entry:

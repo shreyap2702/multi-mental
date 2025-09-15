@@ -15,38 +15,34 @@ graph_builder = StateGraph(State)
 load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 llm = init_chat_model("google_genai:gemini-2.0-flash")
+def safety_agent(state: dict):
+    messages = state.get("messages", [])
+    last_message = messages[-1] if messages else ""
 
-def safety_agent(state: State):
-    user_entry = state["messages"][-1]  
-    
     prompt = f"""
     You are a safety checker for a mental wellness journal.
     The user wrote:
-    {user_entry}
-    
+    {last_message}
+
     Your task:
     - Check if the entry shows signs of self-harm, suicidal ideation, violence, or extreme emotional distress.
     - Respond ONLY with one of the following formats:
-    
+
     SAFE: [short explanation]
     UNSAFE: [short explanation]
     """
-    
+
     response = llm.invoke(prompt)
     result_text = response.content.strip().upper()
-    
-    if result_text.startswith("UNSAFE"):
-        return {
-            "safety_flag": True,
-            "safety_notes": response.content,
-            "messages": state["messages"] + [response]
-        }
-    else:
-        return {
-            "safety_flag": False,
-            "safety_notes": response.content,
-            "messages": state["messages"] + [response]
-        }
+
+    is_unsafe = result_text.startswith("UNSAFE")
+
+    return {
+        "safety_flag": is_unsafe,
+        "safety_notes": response.content,
+        "messages": messages + [response]  # append the model’s response
+    }
+
 
 graph_builder.add_node("safety_agent", safety_agent)
 

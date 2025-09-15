@@ -16,8 +16,9 @@ load_dotenv()
 api_key = os.getenv("GOOGLE_API_KEY")
 llm = init_chat_model("google_genai:gemini-2.0-flash")
 
-def planner_agent(state: State):
-    user_entry = state["messages"][-1] 
+def planner_agent(state: dict):
+    messages = state.get("messages", [])
+    user_entry = messages[-1] if messages else state.get("tasks", "")
     
     prompt = f"""
     The user shared the following journal entry:

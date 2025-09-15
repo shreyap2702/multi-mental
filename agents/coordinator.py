@@ -26,12 +26,10 @@ llm = init_chat_model("google_genai:gemini-2.0-flash")
 def coordinator_agent(state: State):
     responses = {}
 
-    
     if state.get("gratitude"):
         gratitude_result = gratitude_agent(state)
         responses["gratitude"] = gratitude_result["gratitude"]
 
-   
     if state.get("raw_thoughts"):
         listener_result = listener_agent(state)
         responses["reflection"] = listener_result["reflection"]
@@ -40,9 +38,12 @@ def coordinator_agent(state: State):
         planner_result = planner_agent(state)
         responses["plan"] = planner_result["plan"]
 
-    if state.get("pain_points"):
+    if state.get("pain_points"):  # ✅ fixed indentation
         safety_result = safety_agent(state)
-        responses["safety"] = safety_result["safety_check"]
+        responses["safety"] = {
+            "flag": safety_result["safety_flag"],
+            "notes": safety_result["safety_notes"]
+        }
 
     summary_prompt = f"""
     The following agents provided responses:
