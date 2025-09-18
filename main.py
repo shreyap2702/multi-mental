@@ -81,11 +81,12 @@ def delete_user(user_id: int, session: Session = Depends(get_session)):
 # ----------------------------
 @app.post("/entries/")
 def create_entry(userid: int, entry: EntryCreate, session: Session = Depends(get_session)):
-
+    
     user = session.exec(select(User).where(User.id == userid)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    
     today = datetime.utcnow().date()
     existing_entry = session.exec(
         select(Entry).where(
@@ -97,6 +98,7 @@ def create_entry(userid: int, entry: EntryCreate, session: Session = Depends(get
     if existing_entry:
         raise HTTPException(status_code=400, detail="User has already created an entry today")
 
+    
     db_entry = Entry(
         user_id=userid,
         gratitude=entry.gratitude,
@@ -104,11 +106,34 @@ def create_entry(userid: int, entry: EntryCreate, session: Session = Depends(get
         pain_points=entry.pain_points,
         raw_thoughts=entry.raw_thoughts
     )
-
     session.add(db_entry)
     session.commit()
     session.refresh(db_entry)
-    return db_entry
+
+    
+    state = {
+        "messages": [],
+        "gratitude": db_entry.gratitude,
+        "tasks": db_entry.tasks,
+        "pain_points": db_entry.pain_points,
+        "raw_thoughts": db_entry.raw_thoughts
+    }
+
+    
+    analysis = coordinator_agent(state)
+
+    
+    return {
+        "entry_id": db_entry.id,
+        "date": db_entry.date,
+        "content": {
+            "gratitude": db_entry.gratitude,
+            "tasks": db_entry.tasks,
+            "pain_points": db_entry.pain_points,
+            "raw_thoughts": db_entry.raw_thoughts
+        },
+        "analysis": analysis
+    }
 
 @app.get("/entries/{entry_id}")
 def fetch_entry(entry_id: int, session: Session = Depends(get_session)):
