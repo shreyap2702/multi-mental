@@ -190,6 +190,8 @@ def analysis_endpoint(entry_id: int, session: Session = Depends(get_session)):
     # Call the coordinator agent
     analysis = coordinator_agent(state)
 
+    analysis = coordinator_agent(state)
+
     return {
         "entry_id": entry.id,
         "date": entry.date,
@@ -199,5 +201,9 @@ def analysis_endpoint(entry_id: int, session: Session = Depends(get_session)):
             "pain_points": entry.pain_points,
             "raw_thoughts": entry.raw_thoughts
         },
-        "analysis": analysis
+        "analysis": {
+            "summary": analysis.get("coordinator_summary"),
+            "responses": analysis.get("agent_responses"),
+        }
     }
+
